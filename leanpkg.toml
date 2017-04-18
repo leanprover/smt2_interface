@@ -1,0 +1,5 @@
+[package]
+name = "smt2_interface"
+version = "0.1"
+
+[dependencies]
