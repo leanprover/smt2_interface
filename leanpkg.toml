@@ -1,5 +1,7 @@
 [package]
 name = "smt2_interface"
 version = "0.1"
+path = "src"
 
 [dependencies]
+

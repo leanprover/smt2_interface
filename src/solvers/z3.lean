@@ -1,23 +1,18 @@
 import system.io
-import system.process
 import data.buffer
 
-open process
+open io.proc
 
 structure z3_instance [io.interface] : Type :=
-  (process : child io.handle)
-
-def spawn [ioi : io.interface] : process → io (child io.handle) :=
-io.interface.process.spawn
+  (process : child)
 
 def z3_instance.start  [io.interface] : io z3_instance :=
-do let proc : process := {
+    z3_instance.mk <$> io.proc.spawn{
        cmd := "z3",
        args := ["-smt2", "-in"],
-       stdin := stdio.piped,
-       stdout := stdio.piped
-    },
-    z3_instance.mk <$> spawn proc
+       stdin := io.process.stdio.piped,
+       stdout := io.process.stdio.piped
+    }
 
 def z3_instance.raw [io.interface] (z3 : z3_instance) (cmd : string) : io string :=
 do let z3_stdin := z3.process.stdin,
@@ -27,3 +22,4 @@ do let z3_stdin := z3.process.stdin,
    io.fs.close z3_stdin,
    res ← io.fs.read_to_end z3_stdout,
    return res.to_string
+

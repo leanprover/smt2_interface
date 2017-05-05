@@ -1,14 +1,13 @@
 -- declare_trace smt2
 import system.io
-import system.process
 import .solvers.z3
 import .syntax
 import .builder
 import .tactic
 import .attributes
+import init.data.option.basic
 
 open tactic
-open smt2
 open smt2.builder
 
 meta structure smt2_state : Type :=
@@ -22,6 +21,8 @@ state_t smt2_state tactic α
 
 meta instance tactic_to_smt2_m (α : Type) : has_coe (tactic α) (smt2_m α) :=
 ⟨ fun tc, fun s, do res ← tc, return (res, s) ⟩
+
+namespace smt2
 
 meta def mangle_name (n : name) : string :=
 "lean_" ++ n^.to_string_with_sep "-"
@@ -107,16 +108,15 @@ meta def reflect_application (fn : expr) (args : list expr) (callback : expr →
     else tactic.fail "the z3 tactic only supports local constants as uninterpreted head symbols"
 
 /-- This function is the meat of the tactic, it takes a propositional formula in Lean, and transforms
-   it into a corresponding term in SMT2.
--/
+   it into a corresponding term in SMT2. -/
 meta def reflect_arith_formula (reflect_base : expr → smt2_m term) : expr → smt2_m term
 | ```(%%a + %%b) := smt2.builder.add <$> reflect_arith_formula a <*> reflect_arith_formula b
 | ```(%%a - %%b) := smt2.builder.sub <$> reflect_arith_formula a <*> reflect_arith_formula b
 | ```(%%a * %%b) := smt2.builder.mul <$> reflect_arith_formula a <*> reflect_arith_formula b
 | ```(%%a / %%b) := smt2.builder.div <$> reflect_arith_formula a <*> reflect_arith_formula b
 /- Constants -/
-| ```(zero) := smt2.builder.int_const <$> eval_expr int ```(zero : int)
-| ```(one) := smt2.builder.int_const <$> eval_expr int ```(one : int)
+| ```(has_zero.zero) := smt2.builder.int_const <$> eval_expr int ```(has_zero.zero int)
+| ```(has_one.one) := smt2.builder.int_const <$> eval_expr int ```(has_one.one int)
 | ```(bit0 %%Bits) :=
   do ty ← infer_type Bits,
      if (ty = ```(int))
@@ -252,14 +252,16 @@ do env_builder ← reflect_environment,
    goal_builder ← reflect_goal,
    return $ env_builder >> ctxt_builder >> goal_builder >> check_sat
 
+end smt2
+
 meta def z3 (log_file : option string := none) : tactic unit :=
-do (builder, _) ← reflect smt2_state.initial,
+do (builder, _) ← smt2.reflect smt2_state.initial,
    resp ← run_io (λ ioi, @smt2 ioi builder log_file),
    match resp with
-   | response.sat := tactic.fail "z3 was unable to prove the goal"
-   | response.unknown := tactic.fail "z3 was unable to prove the goal"
-   | response.other str := tactic.fail $ "encountered unexpected response: `" ++ str ++ "`"
-   | response.unsat := do
+   | smt2.response.sat := tactic.fail "z3 was unable to prove the goal"
+   | smt2.response.unknown := tactic.fail "z3 was unable to prove the goal"
+   | smt2.response.other str := tactic.fail $ "encountered unexpected response: `" ++ str ++ "`"
+   | smt2.response.unsat := do
         tgt ← target,
         fresh_name ← mk_fresh_name,
         let axiom_name := name.mk_string "z3" (name.mk_string "axioms" fresh_name),
@@ -267,4 +269,3 @@ do (builder, _) ← reflect smt2_state.initial,
         sry ← to_expr $ `(sorry),
         exact sry
    end
-
