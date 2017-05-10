@@ -11,6 +11,9 @@ meta def special_constant.to_format : special_constant → format
 | (special_constant.number i) := to_fmt (to_string i)
 | (special_constant.string str) := to_fmt str
 
+instance int_to_special_constant : has_coe int special_constant :=
+⟨ special_constant.number ⟩
+
 inductive sort : Type
 | id : identifier → sort
 | apply : identifier → list sort → sort
@@ -48,7 +51,10 @@ inductive term : Type
 | annotate : term → list attr → term
 
 instance qual_name_to_term : has_coe qualified_name term :=
-    ⟨ term.qual_id ⟩
+⟨ term.qual_id ⟩
+
+instance special_const_to_term : has_coe special_constant term :=
+⟨ term.const ⟩
 
 meta def term.to_format : term → format
 | (term.qual_id id) := id.to_format
