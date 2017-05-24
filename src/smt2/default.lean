@@ -44,6 +44,9 @@ do st ← state_t.read,
      return s
    end
 
+meta def is_supported_numeric_ty (ty : expr) : bool :=
+(ty = `(int) ∨ ty = `(nat))
+
 inductive formula_type
 | const : name → smt2.sort → formula_type
 | fn : name → list smt2.sort → smt2.sort → formula_type
@@ -58,18 +61,18 @@ meta def fn_type : expr → (list expr × expr)
 | rt := ([], rt)
 
 meta def type_to_sort (e : expr) : smt2_m smt2.sort :=
-if (e = ```(int))
+if (e = `(int))
 then return $ "Int"
-else if (e = ```(Prop))
+else if (e = `(Prop))
 then return $ "Bool"
-else if (e = ```(int))
+else if (e = `(int))
 then return $ "Int"
 -- NB: This case for nat is kind of hack, we will treat this sort later as actually an Int and add constraints
 -- I think we should change the code to map from expr -> (sort, id -> builder unit), essentially
 -- each Lean becomes a z3 sort and a set of constraints true for every variable.
 -- This makes it possible to elaborate refinements into primitive z3 sorts and a set of constraints
 -- this should make it possible to handle classes of refinments, mapping types to integers, etc.
-else if (e = ```(nat))
+else if (e = `(nat))
 then return $ "Nat"
 else if e.is_local_constant
 then return $ (mangle_name e.local_uniq_name)
@@ -97,11 +100,11 @@ meta def classify_formula (e : expr) : smt2_m formula_type :=
 do ty ← infer_type e,
    prop_sorted ← is_prop ty,
    if e.is_local_constant
-   then if (ty = ```(Prop))
+   then if (ty = `(Prop))
         then return $ formula_type.const (e.local_uniq_name) "Bool"
-        else if (ty = ```(int))
+        else if (ty = `(int))
         then return $ formula_type.const (e.local_uniq_name) "Int"
-        else if (ty = ```(nat))
+        else if (ty = `(nat))
         then return $ formula_type.const (e.local_uniq_name) "Nat"
         else if ty.is_arrow
         then formula_type_from_arrow (e.local_uniq_name) e
@@ -109,18 +112,18 @@ do ty ← infer_type e,
         then return formula_type.prop_formula
         else return formula_type.unsupported
    else if e.is_constant
-   then if (ty = ```(Prop))
+   then if (ty = `(Prop))
         then return $ formula_type.const (e.const_name) "Bool"
-        else if (ty = ```(int))
+        else if (ty = `(int))
         then return $ formula_type.const (e.const_name) "Int"
-        else if (ty = ```(nat))
+        else if (ty = `(nat))
         then return $ formula_type.const (e.local_uniq_name) "Nat"
         else if ty.is_arrow
         then formula_type_from_arrow (e.const_name) e
         else if prop_sorted
         then return formula_type.prop_formula
         else return formula_type.unsupported
-   else if (ty = ```(Prop))
+   else if (ty = `(Prop))
    then return formula_type.prop_formula
    else return formula_type.unsupported
 
@@ -134,7 +137,7 @@ match args with
 end
 
 meta def reflect_coercion (source target e : expr) (callback : expr → smt2_m term) : smt2_m term :=
-if source = ```(nat) /\ target = ```(int)
+if source = `(nat) ∧ target = `(int)
 then callback e
 else fail $ "unsupported coercion between " ++ "`" ++ to_string source ++ "` and `" ++ to_string target ++ "`"
 
@@ -153,27 +156,27 @@ meta def is_supported_head_symbol (e : expr) : bool := true
 /-- This function is the meat of the tactic, it takes a propositional formula in Lean, and transforms
    it into a corresponding term in SMT2. -/
 meta def reflect_arith_formula (reflect_base : expr → smt2_m term) : expr → smt2_m term
-| ```(%%a + %%b) := smt2.builder.add <$> reflect_arith_formula a <*> reflect_arith_formula b
-| ```(%%a - %%b) := smt2.builder.sub <$> reflect_arith_formula a <*> reflect_arith_formula b
-| ```(%%a * %%b) := smt2.builder.mul <$> reflect_arith_formula a <*> reflect_arith_formula b
-| ```(%%a / %%b) := smt2.builder.div <$> reflect_arith_formula a <*> reflect_arith_formula b
+| `(%%a + %%b) := smt2.builder.add <$> reflect_arith_formula a <*> reflect_arith_formula b
+| `(%%a - %%b) := smt2.builder.sub <$> reflect_arith_formula a <*> reflect_arith_formula b
+| `(%%a * %%b) := smt2.builder.mul <$> reflect_arith_formula a <*> reflect_arith_formula b
+| `(%%a / %%b) := smt2.builder.div <$> reflect_arith_formula a <*> reflect_arith_formula b
 /- Constants -/
-| ```(has_zero.zero) := smt2.builder.int_const <$> eval_expr int ```(has_zero.zero int)
-| ```(has_one.one) := smt2.builder.int_const <$> eval_expr int ```(has_one.one int)
-| ```(bit0 %%Bits) :=
+| `(has_zero.zero _) := smt2.builder.int_const <$> eval_expr int `(has_zero.zero int)
+| `(has_one.one _) := smt2.builder.int_const <$> eval_expr int `(has_one.one int)
+| `(bit0 %%Bits) :=
   do ty ← infer_type Bits,
-     if (ty = ```(int))
-     then smt2.builder.int_const <$> eval_expr int ```(bit0 %%Bits : int)
-     else if (ty = ```(nat))
-     then smt2.builder.int_const <$> int.of_nat <$> eval_expr nat ```(bit0 %%Bits : nat)
+     if is_supported_numeric_ty ty
+     then smt2.builder.int_const <$> eval_expr int `(bit0 %%Bits : int)
+     else if (ty = `(nat))
+     then smt2.builder.int_const <$> int.of_nat <$> eval_expr nat `(bit0 %%Bits : nat)
      else fail $ "unknown numeric literal: " ++ (to_string ```(bit0 %%Bits : int))
-| ```(bit1 %%Bits) :=
+| `(bit1 %%Bits) :=
   do ty ← infer_type Bits,
-     if (ty = ```(int))
-     then smt2.builder.int_const <$> eval_expr int ```(bit1 %%Bits : int)
-     else if (ty = ```(nat))
-     then smt2.builder.int_const <$> (int.of_nat <$> eval_expr nat ```(bit1 %%Bits : nat))
-     else fail $ "unknown numeric literal: " ++ (to_string ```(bit1 %%Bits : int))
+     if is_supported_numeric_ty ty
+     then smt2.builder.int_const <$> eval_expr int `(bit1 %%Bits : int)
+     else if (ty = `(nat))
+     then smt2.builder.int_const <$> (int.of_nat <$> eval_expr nat `(bit1 %%Bits : nat))
+     else fail $ "unknown numeric literal: " ++ (to_string `(bit1 %%Bits : int))
 | a :=
     if a.is_local_constant
     then return $ term.qual_id (mangle_name a.local_uniq_name)
@@ -186,7 +189,7 @@ meta def reflect_arith_formula (reflect_base : expr → smt2_m term) : expr → 
 /-- Check if the type is an `int` or logically a subtype of an `int` like nat. -/
 meta def is_int (e : expr) : tactic bool :=
 do ty ← infer_type e,
-   return $ (ty = ```(int)) || (ty = ```(nat))
+   return $ (ty = `(int)) || (ty = `(nat))
 
 meta def unsupported_ordering_on {α : Type} (elem : expr) : tactic α :=
 do ty ← infer_type elem,
@@ -200,26 +203,26 @@ do is ← is_int P, -- NB: P and Q should have the same type.
    else unsupported_ordering_on P
 
 meta def reflect_prop_formula' : expr → smt2_m term
-| ```(¬ %%P) := not <$> (reflect_prop_formula' P)
-| ```(%%P = %% Q) := smt2.builder.equals <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
-| ```(%%P ∧ %%Q) := smt2.builder.and2 <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
-| ```(%%P ∨ %%Q) := smt2.builder.or2 <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
-| ```(%%P ↔ %%Q) := smt2.builder.iff <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
-| ```(%%P < %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.lt P Q
-| ```(%%P <= %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.lte P Q
-| ```(%%P > %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.gt P Q
-| ```(%%P >= %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.gte P Q
+| `(¬ %%P) := not <$> (reflect_prop_formula' P)
+| `(%%P = %% Q) := smt2.builder.equals <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
+| `(%%P ∧ %%Q) := smt2.builder.and2 <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
+| `(%%P ∨ %%Q) := smt2.builder.or2 <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
+| `(%%P ↔ %%Q) := smt2.builder.iff <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
+| `(%%P < %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.lt P Q
+| `(%%P <= %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.lte P Q
+| `(%%P > %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.gt P Q
+| `(%%P >= %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') smt2.builder.gte P Q
 | e := if e.is_local_constant
        then return $ term.qual_id (mangle_name e.local_uniq_name)
-       else if e = ```(int)
+       else if e = `(int) ∨ e = `(nat)
        then return "Int"
        else (do
          ty ← infer_type e,
-         tactic.trace $ "expr: " ++ to_string e ++ ", inferred_type: " ++ to_string ty,
-         if (ty = ```(int))
-         then (do tactic.trace "arith", reflect_arith_formula reflect_prop_formula' e)
+         trace $ "expr: " ++ to_string e ++ ", inferred_type: " ++ to_string ty,
+         if (ty = `(int) ∨ ty = `(nat))
+         then (do trace "arith", reflect_arith_formula reflect_prop_formula' e)
          else if e.is_arrow
-         then (do tactic.trace "arrow" ,implies <$> (reflect_prop_formula' e.binding_domain) <*> (reflect_prop_formula' e.binding_body ))
+         then (do trace "arrow" ,implies <$> (reflect_prop_formula' e.binding_domain) <*> (reflect_prop_formula' e.binding_body ))
          else if e.is_pi
          then do loc ← tactic.mk_local' e.binding_name e.binding_info e.binding_domain,
                  tactic.trace $ (expr.instantiate_var (e.binding_body) loc),
@@ -248,6 +251,9 @@ do ty ← infer_type e,
 
 meta def reflect_local (e : expr) : smt2_m (builder unit) :=
 do ft ← classify_formula e,
+   ty ← infer_type e,
+   trace (to_string e),
+   trace (to_string ty),
    match ft with
    | formula_type.const n (sort.id "Bool") :=
      return $ declare_const (mangle_name n) "Bool"
@@ -286,7 +292,7 @@ do decls ← attribute.get_instances `smt2,
 meta def reflect_goal : smt2_m (builder unit) :=
 do tgt ← target,
    ft ← classify_formula tgt,
-   -- tactic.trace ("target: " ++ tgt.to_string),
+   tactic.trace ("target: " ++ tgt.to_string),
    match ft with
    | formula_type.const n (sort.id "Bool") :=
       return $ assert (not $ mangle_name n)
@@ -320,6 +326,6 @@ do (builder, _) ← smt2.reflect smt2_state.initial,
         fresh_name ← mk_fresh_name,
         let axiom_name := name.mk_string "z3" (name.mk_string "axioms" fresh_name),
         -- TODO: generate a minimal unique axiom for each application of the tactic, add_decl (declaration.ax axiom_name [] tgt)
-        sry ← to_expr $ `(sorry),
+        sry ← to_expr $ ``(sorry),
         exact sry
    end
