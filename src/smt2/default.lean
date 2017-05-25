@@ -218,14 +218,12 @@ meta def reflect_prop_formula' : expr → smt2_m term
        then return "Int"
        else (do
          ty ← infer_type e,
-         trace $ "expr: " ++ to_string e ++ ", inferred_type: " ++ to_string ty,
          if (ty = `(int) ∨ ty = `(nat))
-         then (do trace "arith", reflect_arith_formula reflect_prop_formula' e)
+         then reflect_arith_formula reflect_prop_formula' e
          else if e.is_arrow
-         then (do trace "arrow" ,implies <$> (reflect_prop_formula' e.binding_domain) <*> (reflect_prop_formula' e.binding_body ))
+         then implies <$> (reflect_prop_formula' e.binding_domain) <*> (reflect_prop_formula' e.binding_body )
          else if e.is_pi
          then do loc ← tactic.mk_local' e.binding_name e.binding_info e.binding_domain,
-                 tactic.trace $ (expr.instantiate_var (e.binding_body) loc),
                  forallq (mangle_name $ loc.local_uniq_name) <$>
                       -- TODO: fix this
                       (type_to_sort $ e.binding_domain) <*>
@@ -233,13 +231,8 @@ meta def reflect_prop_formula' : expr → smt2_m term
          else if e.is_app
          then do let fn := e.get_app_fn,
                let args := e.get_app_args,
-            --    tactic.trace $ "app case: " ++ to_string e,
-            --    tactic.trace $ "app case fn: " ++ to_string fn,
-            --    tactic.trace $ "app case args: " ++ to_string args,
-               -- we should probably relax for top-level constants which have already been translated
                if fn.is_local_constant
                then do args' ← monad.mapm reflect_prop_formula' args,
-                       tactic.trace $ "arguments: " ++ args.to_string,
                        pure $ smt2.term.apply (mangle_name fn.local_uniq_name) args'
                else tactic.fail "can only handle fn constants right now"
           else tactic.fail $ "unsupported propositional formula : " ++ to_string e)
@@ -252,8 +245,6 @@ do ty ← infer_type e,
 meta def reflect_local (e : expr) : smt2_m (builder unit) :=
 do ft ← classify_formula e,
    ty ← infer_type e,
-   trace (to_string e),
-   trace (to_string ty),
    match ft with
    | formula_type.const n (sort.id "Bool") :=
      return $ declare_const (mangle_name n) "Bool"
@@ -279,8 +270,7 @@ do ls ← local_context,
    return $ list.foldl (λ (a b : builder unit), a >> b) (return ()) bs
 
 meta def reflect_attr_decl (n : name) : smt2_m (builder unit) :=
-do tactic.trace (to_string n),
-   exp ← mk_const n,
+do exp ← mk_const n,
    reflect_local exp
 
 /- Reflect the environment consisting of declarations with the `smt2` attribute. -/
@@ -292,7 +282,6 @@ do decls ← attribute.get_instances `smt2,
 meta def reflect_goal : smt2_m (builder unit) :=
 do tgt ← target,
    ft ← classify_formula tgt,
-   tactic.trace ("target: " ++ tgt.to_string),
    match ft with
    | formula_type.const n (sort.id "Bool") :=
       return $ assert (not $ mangle_name n)
@@ -302,10 +291,6 @@ do tgt ← target,
    | _ := fail "unsupported goal"
    end
 
--- meta def mk_prelude : builder unit :=
---   do declare_sort "unit" 0,
---      declare_fun
-
 meta def reflect : smt2_m (builder unit) :=
 do env_builder ← reflect_environment,
    ctxt_builder ← reflect_context,
@@ -313,6 +298,10 @@ do env_builder ← reflect_environment,
    return $ env_builder >> ctxt_builder >> goal_builder >> check_sat
 
 end smt2
+
+universe u
+
+axiom proof_by_z3 (A : Sort u) : A
 
 meta def z3 (log_file : option string := none) : tactic unit :=
 do (builder, _) ← smt2.reflect smt2_state.initial,
@@ -323,9 +312,6 @@ do (builder, _) ← smt2.reflect smt2_state.initial,
    | smt2.response.other str := fail $ "communication error encountered unexpected response: `" ++ str ++ "`"
    | smt2.response.unsat := do
         tgt ← target,
-        fresh_name ← mk_fresh_name,
-        let axiom_name := name.mk_string "z3" (name.mk_string "axioms" fresh_name),
-        -- TODO: generate a minimal unique axiom for each application of the tactic, add_decl (declaration.ax axiom_name [] tgt)
-        sry ← to_expr $ ``(sorry),
+        sry ← to_expr $ ``(proof_by_z3 %%tgt),
         exact sry
    end
