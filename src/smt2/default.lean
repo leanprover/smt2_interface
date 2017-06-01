@@ -223,11 +223,12 @@ meta def reflect_prop_formula' : expr → smt2_m term
          else if e.is_arrow
          then implies <$> (reflect_prop_formula' e.binding_domain) <*> (reflect_prop_formula' e.binding_body )
          else if e.is_pi
-         then do loc ← tactic.mk_local' e.binding_name e.binding_info e.binding_domain,
-                 forallq (mangle_name $ loc.local_uniq_name) <$>
-                      -- TODO: fix this
-                      (type_to_sort $ e.binding_domain) <*>
-                      (reflect_prop_formula' (expr.instantiate_var (e.binding_body) loc))
+         then fail $ "Π types are unsupported, unable to translate term: `" ++ to_string e ++ "`"
+          -- do loc ← tactic.mk_local' e.binding_name e.binding_info e.binding_domain,
+          --        forallq (mangle_name $ loc.local_uniq_name) <$>
+          --             -- TODO: fix this
+          --             (type_to_sort $ e.binding_domain) <*>
+          --             (reflect_prop_formula' (expr.instantiate_var (e.binding_body) loc))
          else if e.is_app
          then do let fn := e.get_app_fn,
                let args := e.get_app_args,
@@ -264,9 +265,13 @@ do ft ← classify_formula e,
    | _ := return (return ())
    end
 
+meta def warn_unable_to_trans_local (e : expr) : smt2_m (builder unit) := do
+  trace_smt2 $ "unable to translate local variable: " ++ to_string e,
+  return $ return ()
+
 meta def reflect_context : smt2_m (builder unit) :=
 do ls ← local_context,
-   bs ← monad.mapm reflect_local ls,
+   bs ← monad.mapm (fun e, reflect_local e <|> warn_unable_to_trans_local e) ls,
    return $ list.foldl (λ (a b : builder unit), a >> b) (return ()) bs
 
 meta def reflect_attr_decl (n : name) : smt2_m (builder unit) :=
@@ -278,6 +283,13 @@ meta def reflect_environment : smt2_m (builder unit) :=
 do decls ← attribute.get_instances `smt2,
    bs ← monad.mapm reflect_attr_decl decls.reverse,
    return $ (monad.sequence bs >> return ())
+
+-- TODO: clarify/fix declare_sort
+meta def mk_sort_decls : smt2_m (builder unit) :=
+do ⟨ sm ⟩ ← state_t.read,
+   let builder := rb_map.fold sm (return () : builder unit)
+      (fun key sort bl, bl >> declare_sort (to_string $ to_fmt $ sort) 0),
+   return builder
 
 meta def reflect_goal : smt2_m (builder unit) :=
 do tgt ← target,
@@ -293,9 +305,14 @@ do tgt ← target,
 
 meta def reflect : smt2_m (builder unit) :=
 do env_builder ← reflect_environment,
+   sort_decl_builder ← mk_sort_decls,
    ctxt_builder ← reflect_context,
    goal_builder ← reflect_goal,
-   return $ env_builder >> ctxt_builder >> goal_builder >> check_sat
+   return $ env_builder >>
+            sort_decl_builder >>
+            ctxt_builder >>
+            goal_builder >>
+            check_sat
 
 end smt2
 
