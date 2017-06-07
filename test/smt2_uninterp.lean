@@ -7,7 +7,7 @@ lemma uninterpreted_Props :
            (Heq : forall x, f x = g x),
         f ((x + y) +z) = g (z + (y + x)) :=
 begin
-    intros, z3
+    intros, z3 "uint1.log"
 end
 
 lemma uninterpreted_Props_fail :

@@ -18,5 +18,5 @@ attribute [smt2] Heq
 lemma uninterpreted_functions_with_attr :
     f (x < 0) ((x + y) +z) = g (x < 0) (z + (y + x)) :=
 begin
-    intros, z3
+    intros, z3 "foo.log"
 end
