@@ -1,9 +1,21 @@
 import .syntax
+import .except
+import init.category.transformers
 
-@[reducible] def smt2.builder (α : Type) := state (list smt2.cmd) α
+@[reducible] def smt2.builder :=
+except_t (state (list smt2.cmd)) string
+
+instance smt2.builder.monad : monad smt2.builder :=
+by apply_instance
 
 meta def smt2.builder.to_format {α : Type} (build : smt2.builder α) : format :=
 format.join $ list.intersperse "\n" $ (list.map to_fmt $ (build []).snd).reverse
+
+meta def smt2.builder.run {α : Type} (build : smt2.builder α) : (except string α × list smt2.cmd) :=
+build []
+
+meta def smt2.builder.fail {α : Type} : string → smt2.builder α :=
+fun msg s, (except.error msg, s)
 
 meta instance (α : Type) : has_to_format (smt2.builder α) :=
 ⟨ smt2.builder.to_format ⟩
@@ -66,9 +78,12 @@ term.apply "div" [t, u]
 def int_const (i : int) : term :=
 term.const $ special_constant.number i
 
+def lift_state {α : Type} (action : state (list smt2.cmd) α) : smt2.builder α :=
+λ s, let (a, s') := action s in (except.ok a, s')
+
 def add_command (c : cmd) : builder unit := do
-cs ← state.read,
-state.write (c :: cs)
+cs ← lift_state state.read,
+lift_state $ state.write (c :: cs)
 
 def echo (msg : string) : builder unit :=
 add_command (cmd.echo msg)

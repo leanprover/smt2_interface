@@ -66,11 +66,20 @@ do st ← state_t.read,
      | `(Prop) := pure $ lol.type.bool
      | _ := if ty.is_arrow
             then compile_arrow_type ty compile_type
-            else fail "unsupported type"
+            else if ty.is_constant
+            then do insert_type (mangle_name ty.const_name) ty (lol.type.fn [] (lol.type.var $ mangle_name ty.const_name)),
+                 return $ (lol.type.fn [] (lol.type.var $ mangle_name ty.const_name))
+            else fail $ "unsupported type: " ++ to_string ty
      end,
      -- insert_type ty lty,
      return lty
    end
+
+meta def add_decl (n : name) (ty : expr) : smt2_m unit :=
+  do st ← state_t.read,
+     ct ← compile_type ty,
+     let d := lol.decl.fn (mangle_name n) ct none,
+     state_t.write { st with ctxt := st.ctxt.declare d }
 
 -- meta def ensure_constant (e : expr) (n : name) : smt2_m lol.decl :=
 --   do ty ← infer_type e,
@@ -97,31 +106,29 @@ do st ← state_t.read,
 --    SMT2 formula and `(assert P)`.
 -- -/
 
--- #check true
+meta def extract_coe_args (args : list expr) : smt2_m (expr × expr × expr) :=
+match args with
+| (source :: target :: inst :: e :: []) := return (source, target, e)
+| _ := fail "internal tactic error expected `coe` to have exactly 4 arguments"
+end
 
--- run_cmd (do r ←  (classify_formula `(true) smt2_state.initial), trace (r.1.to_string))
+meta def reflect_coercion (source target e : expr) (callback : expr → smt2_m lol.term) : smt2_m lol.term :=
+if source = `(nat) ∧ target = `(int)
+then callback e
+else fail $ "unsupported coercion between " ++ "`" ++ to_string source ++ "` and `" ++ to_string target ++ "`"
 
--- meta def extract_coe_args (args : list expr) : smt2_m (expr × expr × expr) :=
--- match args with
--- | (source :: target :: inst :: e :: []) := return (source, target, e)
--- | _ := fail "internal tactic error expected `coe` to have exactly 4 arguments"
--- end
-
--- meta def reflect_coercion (source target e : expr) (callback : expr → smt2_m term) : smt2_m term :=
--- if source = `(nat) ∧ target = `(int)
--- then callback e
--- else fail $ "unsupported coercion between " ++ "`" ++ to_string source ++ "` and `" ++ to_string target ++ "`"
-
--- meta def reflect_application (fn : expr) (args : list expr) (callback : expr → smt2_m term) : smt2_m term :=
---     if fn.is_constant
---     then if fn.const_name = `coe
---           then do (source, target, e) ← extract_coe_args args,
---                    reflect_coercion source target e callback
---           else do ensure_constant fn fn.const_name,
---                   term.apply (mangle_name fn.const_name) <$> monad.mapm callback args
---     else if fn.is_local_constant
---     then term.apply (mangle_name fn.local_uniq_name) <$> monad.mapm callback args
---     else fail $ "unsupported head symbol `" ++ to_string fn ++ "`"
+meta def reflect_application (fn : expr) (args : list expr) (callback : expr → smt2_m lol.term) : smt2_m lol.term :=
+    if fn.is_constant
+    then if fn.const_name = `coe
+          then do (source, target, e) ← extract_coe_args args,
+                   reflect_coercion source target e callback
+          else do ty ← infer_type fn,
+                  let mangled := (mangle_name fn.const_name),
+                  add_decl fn.const_name ty,
+                  lol.term.apply mangled <$> monad.mapm callback args
+    else if fn.is_local_constant
+    then lol.term.apply (mangle_name fn.local_uniq_name) <$> monad.mapm callback args
+    else fail $ "unsupported head symbol `" ++ to_string fn ++ "`"
 
 -- meta def is_supported_head_symbol (e : expr) : bool := true
 
@@ -156,12 +163,9 @@ meta def reflect_arith_formula (reflect_base : expr → smt2_m lol.term) : expr 
     if a.is_local_constant
     then return $ lol.term.var (mangle_name a.local_uniq_name)
     else if a.is_constant
-    -- TODO fix ensure cod epath
     then return $ lol.term.var (mangle_name a.const_name)
-    -- else
-    -- if a.is_app
-    -- move to reflect application
-    -- then reflect_application (a.get_app_fn) (a.get_app_args) reflect_base
+    else if a.is_app
+    then reflect_application (a.get_app_fn) (a.get_app_args) reflect_base
     else fail $ "unsupported arithmetic formula: " ++ to_string a
 
 -- /-- Check if the type is an `int` or logically a subtype of an `int` like nat. -/
@@ -184,7 +188,9 @@ match ty with
 | `(int) := tt
 | `(nat) := tt
 | `(Prop) := tt
-| _ := ff
+| _ := if ty.is_constant
+       then tt
+       else ff
 end
 
 meta def constraints_for (ty : expr) (binder : symbol) (body : term) : term :=
@@ -206,13 +212,6 @@ then do loc ← tactic.mk_local' e.binding_name e.binding_info e.binding_domain,
           (cb (expr.instantiate_var (e.binding_body) loc))
 else fail $ "arbitrary Π types are not supported, unable to translate term: `" ++ to_string e ++ "`"
 
--- do let fn := e.get_app_fn,
---                let args := e.get_app_args,
---                if fn.is_local_constant
---                then do args' ← monad.mapm reflect_prop_formula' args,
---                        pure $ lol.term.apply (mangle_name fn.local_uniq_name) args'
---                else tactic.fail "can only handle fn constants right now"
-
 meta def reflect_prop_formula' : expr → smt2_m lol.term
 | `(¬ %%P) := lol.term.not <$> (reflect_prop_formula' P)
 | `(%%P = %% Q) := lol.term.equals <$> (reflect_prop_formula' P) <*> (reflect_prop_formula' Q)
@@ -225,14 +224,17 @@ meta def reflect_prop_formula' : expr → smt2_m lol.term
 | `(%%P >= %%Q) := reflect_ordering (reflect_arith_formula reflect_prop_formula') lol.term.gte P Q
 | `(true) := return $ lol.term.true
 | `(false) := return $ lol.term.false
-| e := if e.is_local_constant
+| e := do ty ← infer_type e,
+       if e.is_local_constant
        then pure $ lol.term.var (mangle_name e.local_uniq_name)
        else if e.is_arrow
        then lol.term.implies <$> (reflect_prop_formula' e.binding_domain) <*> (reflect_prop_formula' e.binding_body )
        else if e.is_pi
        then compile_pi e reflect_prop_formula'
+       else if is_supported_numeric_ty ty
+       then reflect_arith_formula reflect_prop_formula' e
        else if e.is_app
-       then tactic.fail "foobar"
+       then reflect_application (e.get_app_fn) (e.get_app_args) reflect_prop_formula'
        else tactic.fail $ "unsupported propositional formula : " ++ to_string e
 
 meta def reflect_prop_formula (e : expr) : smt2_m unit :=
@@ -248,14 +250,8 @@ meta def is_builtin_type : expr → bool
 | `(nat) := tt
 | _ := ff
 
-meta def unsupported_formula : smt2_m unit :=
-fail "unsupported"
-
-meta def add_decl (n : name) (ty : expr) : smt2_m unit :=
-  do st ← state_t.read,
-     ct ← compile_type ty,
-     let d := lol.decl.fn (mangle_name n) ct none,
-     state_t.write { st with ctxt := st.ctxt.declare d }
+meta def unsupported_formula (e : expr) : smt2_m unit :=
+fail $ "unsupported formula: " ++ to_string e
 
 meta def compile_local (e : expr) : smt2_m unit :=
 do ty ← infer_type e,
@@ -264,21 +260,19 @@ do ty ← infer_type e,
    then if is_builtin_type ty
         then add_decl e.local_uniq_name ty
         else if ty.is_arrow
-        then fail "local constant arrow "-- formula_type_from_arrow (e.local_uniq_name) e
+        then add_decl e.local_uniq_name ty
         else if prop_sorted
         then reflect_prop_formula ty
-        else unsupported_formula
+        else unsupported_formula ty
    else if e.is_constant
-   then if is_builtin_type ty
-        then fail "constant"
-        else if ty.is_arrow
-        then fail "arrow" -- formula_type_from_arrow (e.const_name) e
+   then if is_builtin_type ty ∨ ty.is_arrow
+        then add_decl e.const_name ty
         else if prop_sorted
         then reflect_prop_formula ty
-        else unsupported_formula
+        else unsupported_formula ty
    else if (ty = `(Prop))
    then reflect_prop_formula e
-   else unsupported_formula
+   else unsupported_formula e
 
 meta def reflect_attr_decl (n : name) : smt2_m unit :=
 do exp ← mk_const n,

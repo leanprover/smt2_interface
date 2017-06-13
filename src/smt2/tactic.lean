@@ -18,17 +18,23 @@ else if str = "unknown\n"
 then smt2.response.unknown
 else smt2.response.other str
 
--- should probably abstract over solvers
+meta def cmds_to_string (cmds : list smt2.cmd) : string :=
+to_string $ format.join $ list.intersperse "\n" $ list.map (λ c, to_fmt c) cmds.reverse
+
 meta def smt2 [io.interface] (build : smt2.builder unit) (log_query : option string := none) : io smt2.response :=
 do z3 ← z3_instance.start,
    -- maybe we should have a primitive to go from fmt to char buffer
-   let query := to_string $ to_fmt build,
-   -- io.put_str (to_string $ to_fmt build),
-   match log_query with
-   | none := return ()
-   | some fn :=
-     do file ← io.mk_file_handle fn io.mode.write,
-        io.fs.write file (query.reverse.to_buffer)
-   end,
-   res ← z3.raw (to_string $ to_fmt build),
-   return $ parse_smt2_result res
+   let ((exc : except string unit), cmds) := build.run,
+   match (exc : except string unit) with
+   | (except.error e) := io.fail $ "builder failed with: " ++ e -- TODO: better message
+   | (except.ok v) :=
+     do let query := cmds_to_string cmds,
+     match log_query with
+     | none := return ()
+     | some fn :=
+       do file ← io.mk_file_handle fn io.mode.write,
+          io.fs.write file (query.to_list.to_buffer)
+     end,
+     res ← z3.raw query,
+     return $ parse_smt2_result res
+  end
