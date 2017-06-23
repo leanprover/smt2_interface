@@ -24,8 +24,8 @@ to_string $ format.join $ list.intersperse "\n" $ list.map (λ c, to_fmt c) cmds
 meta def smt2 [io.interface] (build : smt2.builder unit) (log_query : option string := none) : io smt2.response :=
 do z3 ← z3_instance.start,
    -- maybe we should have a primitive to go from fmt to char buffer
-   let ((exc : except string unit), cmds) := build.run,
-   match (exc : except string unit) with
+   let (exc, cmds) := build.run,
+   match exc with
    | (except.error e) := io.fail $ "builder failed with: " ++ e -- TODO: better message
    | (except.ok v) :=
      do let query := cmds_to_string cmds,

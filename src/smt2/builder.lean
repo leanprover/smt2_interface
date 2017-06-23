@@ -75,6 +75,12 @@ term.apply "*" [t, u]
 def div (t u : term) : term :=
 term.apply "div" [t, u]
 
+def mod (t u : term) : term :=
+term.apply "mod" [t, u]
+
+def neg (t : term) : term :=
+term.apply "-" [t]
+
 def int_const (i : int) : term :=
 term.const $ special_constant.number i
 

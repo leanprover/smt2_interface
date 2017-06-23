@@ -2,17 +2,6 @@ import smt2.syntax
 import smt2.builder
 import .except
 
--- instance {α : Type} [decidable_eq α] : decidable_eq (list α)
--- | []     []      := is_true rfl
--- | (a::l) []      := is_false (λh, list.no_confusion h)
--- | []     (b::l') := is_false (λh, list.no_confusion h)
--- | (a::l) (b::l') :=
--- begin
---     refine (if ab : a = b then _ else _),
---     constructor,
---     rewrite ab,
--- end
-
 def ordering.or_else : ordering → thunk ordering → ordering
 | ordering.lt _ := ordering.lt
 | ordering.eq f := f ()
@@ -47,7 +36,7 @@ instance : has_ordering string :=
 namespace lol
 
 structure refinement (T : Type) :=
-(pred : string → T)
+ (refinment : T → T)
 
 mutual inductive type, term
 with type : Type
@@ -55,7 +44,7 @@ with type : Type
 | int : type
 | var : string → type
 | fn : list type → type → type
-| refinement : type → refinement type → type
+| refinement : type → (string → term) → type
 with term : Type
 -- TODO: eventually allow for term in head position, and generalize in trans
 -- TODO: stratify this so that Prop > Ordering > Arith
@@ -73,23 +62,122 @@ with term : Type
 | sub : term → term → term
 | mul : term → term → term
 | div : term → term → term
+| mod : term → term → term
 | lt : term → term → term
 | lte : term → term → term
 | gt : term → term → term
 | gte : term → term → term
+| neg : term → term
 | int : int → term
 | forallq : string → type → term → term
+
+meta def term.subst (n : string) (subst : term) : term → term
+| (term.apply f args) := term.apply f (list.map term.subst args)
+| term.true := term.true
+| term.false := term.false
+| (term.var s) :=
+    if s = n
+    then subst
+    else term.var s
+| (term.not t) := term.subst t
+| (term.equals t u) :=
+    term.equals (term.subst t) (term.subst u)
+| (term.and t u) :=
+    term.and (term.subst t) (term.subst u)
+| (term.or t u) :=
+    term.or (term.subst t) (term.subst u)
+| (term.iff t u) :=
+    term.iff (term.subst t) (term.subst u)
+| (term.implies t u) :=
+    term.implies (term.subst t) (term.subst u)
+| (term.add t u) :=
+    term.add (term.subst t) (term.subst u)
+| (term.sub t u) :=
+    term.sub (term.subst t) (term.subst u)
+| (term.mul t u) :=
+    term.mul (term.subst t) (term.subst u)
+| (term.div t u) :=
+    term.div (term.subst t) (term.subst u)
+| (term.mod t u) :=
+    term.mod (term.subst t) (term.subst u)
+| (term.lt t u) :=
+    term.lt (term.subst t) (term.subst u)
+| (term.lte t u) :=
+    term.lte (term.subst t) (term.subst u)
+| (term.gt t u) :=
+    term.gt (term.subst t) (term.subst u)
+| (term.gte t u) :=
+    term.gte (term.subst t) (term.subst u)
+| (term.neg t) :=
+    term.neg (term.subst t)
+| (term.int i) := term.int i
+| (term.forallq n ty body) := term.forallq n ty body
+    -- term.forallq (term.subst t) (term.subst u)
+
+#check @has_ordering.mk
+
+-- meta def term.ordering_nat : term → nat
+-- | term.true := 1
+-- | term.false := 2
+-- | (term.apply f args) := 1 + f.length + list.foldl (+) 0 (list.map term.ordering_nat args)
+-- | (term.var s) :=
+--     if s = n
+--     then subst
+--     else term.var s
+-- | (term.not t) := term.subst t
+-- | (term.equals t u) :=
+--     term.equals (term.subst t) (term.subst u)
+-- | (term.and t u) :=
+--     term.and (term.subst t) (term.subst u)
+-- | (term.or t u) :=
+--     term.or (term.subst t) (term.subst u)
+-- | (term.iff t u) :=
+--     term.iff (term.subst t) (term.subst u)
+-- | (term.implies t u) :=
+--     term.implies (term.subst t) (term.subst u)
+-- | (term.add t u) :=
+--     term.add (term.subst t) (term.subst u)
+-- | (term.sub t u) :=
+--     term.sub (term.subst t) (term.subst u)
+-- | (term.mul t u) :=
+--     term.mul (term.subst t) (term.subst u)
+-- | (term.div t u) :=
+--     term.div (term.subst t) (term.subst u)
+-- | (term.add t u) :=
+--     term.add (term.subst t) (term.subst u)
+-- | (term.sub t u) :=
+--     term.sub (term.subst t) (term.subst u)
+-- | (term.mul t u) :=
+--     term.mul (term.subst t) (term.subst u)
+-- | (term.lt t u) :=
+--     term.lt (term.subst t) (term.subst u)
+-- | (term.lte t u) :=
+--     term.lte (term.subst t) (term.subst u)
+-- | (term.gt t u) :=
+--     term.gt (term.subst t) (term.subst u)
+-- | (term.gte t u) :=
+--     term.gte (term.subst t) (term.subst u)
+-- | (term.neg t u) :=
+--     term.neg (term.subst t) (term.subst u)
+-- | (term.int t u) :=
+--     term.int (term.subst t) (term.subst u)
+-- | (term.forallq n ty body) := term.forallq n ty body
+
+meta instance term.has_ordering : has_ordering term :=
+⟨ fun a b, ordering.lt ⟩
 
 mutual def type.to_string, list_map
 with type.to_string : type → string
 | (type.int) := "int"
 | (type.bool) := "bool"
 | (type.var s) := s
-| (type.refinement t ref) := "t { ... }" -- fixme
+| (type.refinement t ref) := type.to_string t ++ " { x | }" -- thid doesn't work
 | (type.fn args rt) := string.join (list_map args) ++ (type.to_string rt)
 with list_map : list type → list string
 | [] := []
 | (t :: ts) := type.to_string t :: (list_map ts)
+-- with term.to_string : term → string
+-- | _ := "term"
 
 instance type.has_to_string : has_to_string type :=
 ⟨ type.to_string ⟩
@@ -121,51 +209,133 @@ meta def context.declare : context → decl → context
 | ctxt decl :=
     { ctxt with decls := ctxt.decls.insert decl.name decl }
 
+meta def context.lookup_type : context → string → option type
+| ctxt n :=
+    do d ← ctxt.decls.find n,
+    match d with
+    | (decl.fn _ ty _) := some ty
+    end
+
 open smt2.builder
 
-private meta def compile_type_simple : type → smt2.builder smt2.sort
+meta structure smt2_compiler_state :=
+(refinement_map : rb_map lol.term unit)
+(ctxt : context)
+(commands : list smt2.cmd)
+
+meta def smt2_compiler := except_t (state smt2_compiler_state) string
+
+meta instance smt2_compiler.monad : monad smt2_compiler :=
+begin
+unfold smt2_compiler, apply_instance
+end
+
+meta def lift_state {α : Type} (action : state smt2_compiler_state α) : smt2_compiler α :=
+λ s, let (a, s') := action s in (except.ok a, s')
+
+meta def add_command (c : smt2.cmd) : smt2_compiler unit :=
+do st ← lift_state state.read,
+   lift_state $ state.write { st with commands := c :: st.commands }
+
+meta def declare_fun (sym : string) (ps : list smt2.sort) (ret : smt2.sort) : smt2_compiler unit :=
+add_command $ smt2.cmd.declare_fun sym ps ret
+
+meta def declare_sort (sym : string) (arity : nat) : smt2_compiler unit :=
+add_command $ smt2.cmd.declare_sort sym arity
+
+meta def assert (t : smt2.term) : smt2_compiler unit :=
+add_command $ smt2.cmd.assert_cmd t
+
+meta def smt2_compiler.fail {α : Type} : string → smt2_compiler α :=
+fun msg s, (except.error msg, s)
+
+private meta def compile_type_simple : type → smt2_compiler smt2.sort
 | (type.bool) := return "Bool"
 | (type.int) := return "Int"
 | (type.var s) := return s
 | (type.fn [] rt) := compile_type_simple rt
-| ty := smt2.builder.fail $ "simple type error: " ++ to_string ty
+-- There is a bug here.
+| (type.refinement t _) := compile_type_simple t
+| t := smt2_compiler.fail $ "compile_simple_type: unsupported" ++ to_string t
 
-private meta def compile_type : type → smt2.builder ((list smt2.sort) × smt2.sort)
-| (type.bool) := return ([], "Bool")
-| (type.int) := return ([], "Int")
+@[reducible] meta def refinements : Type := string → smt2_compiler unit
+
+meta def refinements.empty : refinements :=
+fun _, return ()
+
+meta def get_refinement : (term × type) → option term
+| (t, type.refinement ty refn) := some $ term.subst "__bogus__" t (refn "__bogus__")
+| _ := none
+
+def filter_map {A B : Type} (f : A → option B) : list A → list B
+| [] := []
+| (x :: xs) :=
+    match f x with
+    | some r := r :: filter_map xs
+    | none := filter_map xs
+    end
+
+meta def compile_type'
+(compile_term : lol.term → smt2_compiler smt2.term) : type → smt2_compiler ((list smt2.sort) × smt2.sort × refinements)
+| (type.bool) := return ([], "Bool", refinements.empty)
+| (type.int) := return ([], "Int", refinements.empty)
 | (type.fn args ret) :=
     do args' ← monad.mapm compile_type_simple args,
        ret' ← compile_type_simple ret,
-       return (args', ret')
-| (type.var s) := return ([], s)
-| (type.refinement t ref) := smt2.builder.fail "compile type error"
+       return (args', ret', refinements.empty)
+| (type.var s) := return ([], s, refinements.empty)
+| (type.refinement t ref) :=
+    let rs := (λ x,
+        do let t := ref x,
+           ct ← compile_term t,
+           assert ct) in
+    do sort ← compile_type_simple t,
+       pure $ ([], sort, rs)
 
-private meta def compile_types : list (string × type) → smt2.builder unit
-| [] := return ()
-| ((n, ty) :: decls) :=
-do match ty with
-   | type.fn args ret :=
-    -- TODO: fix me
-      declare_sort n 0
-   | type.int := return ()
-   | type.bool := return ()
-   | type.var _ := return ()
-   | type.refinement t ref := return ()
-   end,
-   compile_types decls.
+meta def inst_ref (f : string → term) : term → term :=
+    fun t, term.subst "__bogus__" t (f "__bogus__")
 
-private meta def compile_decl : decl → smt2.builder unit
-| (decl.fn n ty none) :=
-    do (args, rt) ← compile_type ty,
-        declare_fun n args rt
-| _ := return () -- TODO: fix me
+meta def unless_cached (t : term) (action : smt2_compiler unit) : smt2_compiler unit :=
+do st ← lift_state state.read,
+   match st.refinement_map.find t with
+   | none :=
+     do let st' := { st with refinement_map := st.refinement_map.insert t () },
+        lift_state $ state.write st',
+        action
+   | some _ := return ()
+   end
 
-private meta def compile_decls : list (string × decl) → smt2.builder unit
-| [] := return ()
-| ((n, d) :: rs) := do compile_decl d, compile_decls rs
+private meta def add_refinement_post_cond
+(compile_term : lol.term → smt2_compiler smt2.term) : string → lol.type → list lol.term → smt2_compiler unit
+| n ty [] := return ()
+| n (type.fn arg_tys ret_ty) args :=
+    match get_refinement (term.apply n args, ret_ty) with
+    | none := return ()
+    | some ret_ref :=
+    let refns := filter_map get_refinement (list.zip args arg_tys) in
+    if refns.length = 0
+    then return ()
+    else do s_refns ← monad.mapm compile_term refns,
+            s_ret_ref ← compile_term ret_ref,
+            assert (smt2.builder.implies (smt2.builder.and s_refns) s_ret_ref)
+    end
+| _ _ _ := return ()
 
-private meta def compile_term : lol.term → smt2.builder smt2.term
-| (term.apply t us) := smt2.term.apply t <$> monad.mapm compile_term us
+private meta def compile_term_app
+(compile_term : lol.term → smt2_compiler smt2.term)
+(t : string)
+(us : list term) : smt2_compiler smt2.term :=
+do args ← monad.mapm compile_term us,
+   st ← lift_state state.read,
+    match st.ctxt.lookup_type t with
+    | none := smt2_compiler.fail "unknown function"
+    | some ty :=
+         do -- unless_cached (term.apply t us) (add_refinement_post_cond compile_term t ty us),
+            pure $ smt2.term.apply t args
+    end
+
+private meta def compile_term : lol.term → smt2_compiler smt2.term
+| (term.apply t us) := compile_term_app compile_term t us
 | (term.true) := pure $ smt2.term.qual_id "true"
 | (term.false) := pure $ smt2.term.qual_id "false"
 | (term.var str) := pure $ smt2.term.qual_id str
@@ -183,19 +353,52 @@ private meta def compile_term : lol.term → smt2.builder smt2.term
 | (term.lte a b) := smt2.builder.lte <$> compile_term a <*> compile_term b
 | (term.gt a b) := smt2.builder.gt <$> compile_term a <*> compile_term b
 | (term.gte a b) := smt2.builder.gte <$> compile_term a <*> compile_term b
+| (term.mod a b) := smt2.builder.mod <$> compile_term a <*> compile_term b
 | (term.int i) := return $ smt2.builder.int_const i
 | (term.forallq n ty body) := smt2.builder.forallq n <$> (compile_type_simple ty) <*> compile_term body
+| (term.neg a) := smt2.builder.neg <$> compile_term a
 
-private meta def compile_assertions : list term → smt2.builder unit
+-- TODO fix me
+meta def compile_type := compile_type' compile_term
+
+private meta def compile_types : list (string × type) → smt2_compiler unit
+| [] := return ()
+| ((n, ty) :: decls) :=
+do match ty with
+   | type.fn args ret :=
+      declare_sort n 0
+   | type.int := return ()
+   | type.bool := return ()
+   | type.var _ := return ()
+   | type.refinement t ref := return ()
+   end,
+   compile_types decls.
+
+private meta def compile_decl : decl → smt2_compiler unit
+| (decl.fn n ty none) :=
+    do (args, rt, ref) ← compile_type ty,
+        declare_fun n args rt,
+        ref n -- add refinments, revisit this after internship
+| _ := return () -- TODO: fix me
+
+private meta def compile_decls : list (string × decl) → smt2_compiler unit
+| [] := return ()
+| ((n, d) :: rs) := do compile_decl d, compile_decls rs
+
+private meta def compile_assertions : list term → smt2_compiler unit
 | [] := return ()
 | (t :: ts) :=
   do t' ← compile_term t,
-     smt2.builder.assert t',
+     assert t',
      compile_assertions ts
 
-meta def compile (ctxt : context) : smt2.builder unit :=
-do compile_types ctxt.type_decl.to_list,
-   compile_decls ctxt.decls.to_list,
-   compile_assertions ctxt.assertions
+meta def compile : smt2_compiler unit :=
+do st ← lift_state state.read,
+   compile_types st.ctxt.type_decl.to_list,
+   compile_decls st.ctxt.decls.to_list,
+   compile_assertions st.ctxt.assertions
+
+meta def to_builder {α : Type} (st : smt2_compiler_state) : smt2_compiler α → smt2.builder α
+| action := let (exc, st') := action st in fun cs, (exc, cs ++ st'.commands)
 
 end lol

@@ -62,7 +62,7 @@ do st ← state_t.read,
    | none := do
      lty ← match ty with
      | `(int) := pure $ lol.type.int
-     | `(nat) := pure $ lol.type.int
+     | `(nat) := pure $ lol.type.refinement lol.type.int (fun x, lol.term.lte (lol.term.int 0) (lol.term.var x))
      | `(Prop) := pure $ lol.type.bool
      | _ := if ty.is_arrow
             then compile_arrow_type ty compile_type
@@ -142,6 +142,8 @@ meta def reflect_arith_formula (reflect_base : expr → smt2_m lol.term) : expr 
 | `(%%a - %%b) := lol.term.sub <$> reflect_arith_formula a <*> reflect_arith_formula b
 | `(%%a * %%b) := lol.term.mul <$> reflect_arith_formula a <*> reflect_arith_formula b
 | `(%%a / %%b) := lol.term.div <$> reflect_arith_formula a <*> reflect_arith_formula b
+| `(%%a % %%b) := lol.term.mod <$> reflect_arith_formula a <*> reflect_arith_formula b
+| `(- %%a) := lol.term.neg <$> reflect_arith_formula a
 -- /- Constants -/
 | `(has_zero.zero _) := lol.term.int <$> eval_expr int `(has_zero.zero int)
 | `(has_one.one _) := lol.term.int <$> eval_expr int `(has_one.one int)
@@ -191,12 +193,6 @@ match ty with
 | _ := if ty.is_constant
        then tt
        else ff
-end
-
-meta def constraints_for (ty : expr) (binder : symbol) (body : term) : term :=
-match ty with
-| `(nat) := builder.implies (builder.lte (0 : int) binder) body
-| _ := body
 end
 
 meta def add_assertion (t : lol.term) : smt2_m unit :=
@@ -300,7 +296,7 @@ do reflect_environment,
    reflect_context,
    reflect_goal,
    st ← state_t.read,
-   return $ (lol.compile st.ctxt >> check_sat)
+   return $ (lol.to_builder (lol.smt2_compiler_state.mk (rb_map.mk _ _) st.ctxt []) lol.compile >> check_sat)
 
 end smt2
 
