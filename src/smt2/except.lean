@@ -85,7 +85,7 @@ begin
   intros,
   unfold except_t at x,
   unfold except_t.map,
-  assert P : @except.map ε α α id = id,
+  have P : @except.map ε α α id = id,
   apply funext,
   intros,
   rewrite except.id_map,
@@ -98,7 +98,7 @@ lemma except_t.pure_bind {α β : Type u} (x : α) (f : α → except_t m ε β)
     except_t.bind (except_t.return x) f = f x :=
 begin
   unfold except_t.return except_t.bind,
-  pose pb := @monad.pure_bind,
+  have pb := @monad.pure_bind,
   rewrite pb,
   unfold except_t.bind._match_1,
   reflexivity
