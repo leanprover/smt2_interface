@@ -135,7 +135,6 @@ begin
   unfold except_t.bind._match_1,
   unfold function.comp,
   simp [except.map],
-  unfold return pure,
   unfold function.comp,
   unfold except_t.bind._match_1,
   simp [except.map],
