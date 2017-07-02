@@ -35,8 +35,8 @@ begin intros, dsimp [except.return, except.bind], reflexivity end
 lemma except.bind_pure_comp_eq_map {ε  α β : Type u} (f : α → β) (x : except ε α) : (except.bind x) (except.return ∘ f) = except.map f x :=
 begin
   intros,
-  cases x; dsimp, unfold except.bind except.return except.map,
-  unfold except.bind._match_1,
+  cases x; dsimp, dunfold except.bind except.return except.map,
+  dunfold except.bind._match_1,
   simp, reflexivity,
 end
 
@@ -84,7 +84,7 @@ lemma except_t.id_map {α : Type u} (x : except_t m ε α) : except_t.map id x =
 begin
   intros,
   unfold except_t at x,
-  unfold except_t.map,
+  dunfold except_t.map,
   have P : @except.map ε α α id = id,
   apply funext,
   intros,
@@ -97,26 +97,26 @@ end
 lemma except_t.pure_bind {α β : Type u} (x : α) (f : α → except_t m ε β) :
     except_t.bind (except_t.return x) f = f x :=
 begin
-  unfold except_t.return except_t.bind,
+  dunfold except_t.return except_t.bind,
   have pb := @monad.pure_bind,
   rewrite pb,
-  unfold except_t.bind._match_1,
+  dunfold except_t.bind._match_1,
   reflexivity
 end
 
 lemma except_t.bind_assoc {α β γ : Type u} (x : except_t m ε α) (f : α → except_t m ε β) (g : β → except_t m ε γ):
   except_t.bind (except_t.bind x f) g = except_t.bind x (λ (x : α), except_t.bind (f x) g) :=
 begin
-  unfold except_t.bind,
+  dunfold except_t.bind,
   rewrite monad.bind_assoc,
   apply congr,
   simp,
   apply funext,
   intros,
-  cases x_1; simp; unfold except_t.bind._match_1,
+  cases x_1; simp; dunfold except_t.bind._match_1,
   unfold return pure,
   rewrite @monad.pure_bind,
-  unfold except_t.bind._match_1 has_pure.pure,
+  dunfold except_t.bind._match_1 has_pure.pure,
   dsimp,
   reflexivity,
   reflexivity,
@@ -126,19 +126,19 @@ lemma except_t.bind_pure_comp_eq_map {α β : Type u} (f : α → β) (x : excep
 begin
   intros,
   unfold except_t at x,
-  unfold except_t.bind except_t.map,
+  dunfold except_t.bind except_t.map,
   rewrite -monad.bind_pure_comp_eq_map,
   apply congr ; simp,
   apply funext,
   intros,
   cases x_1,
-  unfold except_t.bind._match_1,
+  dunfold except_t.bind._match_1,
   unfold function.comp,
   simp [except.map],
   unfold function.comp,
-  unfold except_t.bind._match_1,
+  dunfold except_t.bind._match_1,
   simp [except.map],
-  unfold except_t.return,
+  dunfold except_t.return,
   reflexivity,
 end
 

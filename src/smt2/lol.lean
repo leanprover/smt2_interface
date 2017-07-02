@@ -114,8 +114,6 @@ meta def term.subst (n : string) (subst : term) : term → term
 | (term.forallq n ty body) := term.forallq n ty body
     -- term.forallq (term.subst t) (term.subst u)
 
-#check @has_ordering.mk
-
 -- meta def term.ordering_nat : term → nat
 -- | term.true := 1
 -- | term.false := 2
@@ -227,7 +225,7 @@ meta def smt2_compiler := except_t (state smt2_compiler_state) string
 
 meta instance smt2_compiler.monad : monad smt2_compiler :=
 begin
-unfold smt2_compiler, apply_instance
+dunfold smt2_compiler, apply_instance
 end
 
 meta def lift_state {α : Type} (action : state smt2_compiler_state α) : smt2_compiler α :=
