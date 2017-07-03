@@ -35,7 +35,7 @@ begin intros, dsimp [except.return, except.bind], reflexivity end
 lemma except.bind_pure_comp_eq_map {ε  α β : Type u} (f : α → β) (x : except ε α) : (except.bind x) (except.return ∘ f) = except.map f x :=
 begin
   intros,
-  cases x; dsimp, dunfold except.bind except.return except.map,
+  cases x; dunfold except.bind except.return except.map,
   dunfold except.bind._match_1,
   simp, reflexivity,
 end
