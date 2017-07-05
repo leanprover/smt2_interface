@@ -127,7 +127,7 @@ begin
   intros,
   unfold except_t at x,
   dunfold except_t.bind except_t.map,
-  rewrite -monad.bind_pure_comp_eq_map,
+  rewrite [← monad.bind_pure_comp_eq_map],
   apply congr ; simp,
   apply funext,
   intros,

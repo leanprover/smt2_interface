@@ -2,37 +2,6 @@ import smt2.syntax
 import smt2.builder
 import .except
 
-def ordering.or_else : ordering → thunk ordering → ordering
-| ordering.lt _ := ordering.lt
-| ordering.eq f := f ()
-| ordering.gt _ := ordering.gt
-
--- temp from mario's pr
-instance fin.has_ordering (n : nat) : has_ordering (fin n) :=
-⟨λ a b, nat.cmp a.1 b.1⟩
-
-instance : has_ordering char :=
-fin.has_ordering _
-
-instance : has_ordering unsigned :=
-fin.has_ordering _
-
-def list.cmp {α : Type} [has_ordering α] : list α → list α → ordering
-| []     []      := ordering.eq
-| []     (b::l') := ordering.lt
-| (a::l) []      := ordering.gt
-| (a::l) (b::l') := (has_ordering.cmp a b).or_else (list.cmp l l')
-
-instance {α : Type} [has_ordering α] : has_ordering (list α) :=
-⟨list.cmp⟩
--- end temp
-
-def string.cmp : string → string → ordering :=
-fun s1 s2, list.cmp s1.to_list s2.to_list
-
-instance : has_ordering string :=
-⟨string.cmp⟩
-
 namespace lol
 
 structure refinement (T : Type) :=
