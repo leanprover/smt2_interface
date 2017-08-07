@@ -1,4 +1,4 @@
-def smt2_attribute : user_attribute :=
+meta def smt2_attribute : user_attribute :=
 { name := `smt2,
   descr := "Mark a decalartion as part of the gloabl environment of the smt2 tactic" }
 
