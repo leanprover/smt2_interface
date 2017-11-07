@@ -11,6 +11,7 @@ declare_trace smt2
 
 open tactic
 open smt2.builder
+open native
 
 meta structure smt2_state : Type :=
 (ctxt : lol.context)

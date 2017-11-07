@@ -1,7 +1,7 @@
 import smt2.syntax
 import smt2.builder
 import .except
-
+open native
 namespace lol
 
 structure refinement (T : Type) :=
