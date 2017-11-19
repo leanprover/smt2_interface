@@ -130,8 +130,17 @@ meta def term.subst (n : string) (subst : term) : term → term
 --     term.int (term.subst t) (term.subst u)
 -- | (term.forallq n ty body) := term.forallq n ty body
 
-meta instance term.has_ordering : has_ordering term :=
-⟨ fun a b, ordering.lt ⟩
+-- meta instance term.has_ordering : has_ordering term :=
+-- ⟨ fun a b, ordering.lt ⟩
+-- Jared, has_ordering is obsolete, we use has_lt to define maps.
+-- I'm confused by the instance above. It is a constant function function?!?!?
+-- So, I defined the following instance using a trivial predicate.
+
+meta instance term.has_lt : has_lt term :=
+⟨λ a b, true⟩
+
+meta instance term.decidable_lt : decidable_rel ((<) : term → term → Prop) :=
+λ a b, is_true trivial
 
 mutual def type.to_string, list_map
 with type.to_string : type → string
