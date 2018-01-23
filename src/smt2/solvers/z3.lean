@@ -3,10 +3,10 @@ import data.buffer
 
 open io.proc
 
-structure z3_instance [io.interface] : Type :=
+structure z3_instance : Type :=
   (process : child)
 
-def z3_instance.start  [io.interface] : io z3_instance :=
+def z3_instance.start  : io z3_instance :=
     z3_instance.mk <$> io.proc.spawn{
        cmd := "z3",
        args := ["-smt2", "-in"],
@@ -14,7 +14,7 @@ def z3_instance.start  [io.interface] : io z3_instance :=
        stdout := io.process.stdio.piped
     }
 
-def z3_instance.raw [io.interface] (z3 : z3_instance) (cmd : string) : io string :=
+def z3_instance.raw (z3 : z3_instance) (cmd : string) : io string :=
 do let z3_stdin := z3.process.stdin,
    let z3_stdout := z3.process.stdout,
    -- rexpose to_buffer
@@ -23,4 +23,3 @@ do let z3_stdin := z3.process.stdin,
    io.fs.close z3_stdin,
    res ← io.fs.read_to_end z3_stdout,
    return res.to_string
-

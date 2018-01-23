@@ -21,7 +21,7 @@ else smt2.response.other str
 meta def cmds_to_string (cmds : list smt2.cmd) : string :=
 to_string $ format.join $ list.intersperse "\n" $ list.map (λ c, to_fmt c) cmds.reverse
 
-meta def smt2 [io.interface] (build : smt2.builder unit) (log_query : option string := none) : io smt2.response :=
+meta def smt2 (build : smt2.builder unit) (log_query : option string := none) : io smt2.response :=
 do z3 ← z3_instance.start,
    -- maybe we should have a primitive to go from fmt to char buffer
    let (exc, cmds) := build.run,
