@@ -313,7 +313,7 @@ axiom proof_by_z3 (A : Sort u) : A
 
 meta def z3 (log_file : option string := none) : tactic unit :=
 do (builder, _) ← smt2.reflect smt2_state.initial,
-   resp ← run_io (smt2 builder log_file),
+   resp ← unsafe_run_io (smt2 builder log_file),
    match resp with
    | smt2.response.sat := fail "z3 was unable to prove the goal"
    | smt2.response.unknown := fail "z3 was unable to prove the goal"
