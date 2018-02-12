@@ -119,6 +119,7 @@ meta def cmd.to_format : cmd → format
 | (declare_fun sym ps rs) := "(declare-fun " ++ sym ++
     format.bracket " (" ")" (format.join $ list.intersperse " " $ list.map to_fmt ps) ++ " " ++ to_fmt rs ++ ")"
 | (declare_sort sym arity) := "(declare-sort " ++ sym ++ " " ++ to_string arity ++ ")"
+| (reset) := "(reset)"
 | _ := "NYI"
 
 meta instance : has_to_format cmd :=
