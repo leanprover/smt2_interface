@@ -14,7 +14,7 @@ format.join $ list.intersperse "\n" $ (list.map to_fmt $ (build []).snd).reverse
 meta def smt2.builder.run {α : Type} (build : smt2.builder α) : (except string α × list smt2.cmd) :=
 build []
 
-meta def smt2.builder.fail {α : Type} : string → smt2.builder α :=
+def smt2.builder.fail {α : Type} : string → smt2.builder α :=
 fun msg s, (except.error msg, s)
 
 meta instance (α : Type) : has_to_format (smt2.builder α) :=
