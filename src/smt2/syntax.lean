@@ -5,11 +5,38 @@ namespace smt2
 
 inductive special_constant : Type
 | number : int → special_constant
+| bitvec : nat → int → special_constant 
 | string : string → special_constant
+
+def hexdigit (n:nat) : char :=
+    char.of_nat (if n < 10 then
+            char.to_nat '0' + n
+        else char.to_nat 'A' + n - 10)
+
+-- to_hex is meta because currently
+-- termination cannot be guaranteed by LEAN.
+meta def to_hex : nat → string
+| 0 := "" -- leave it as "".
+| n := (to_hex (n / 16)) ++ to_string (hexdigit (n % 16))
 
 meta def special_constant.to_format : special_constant → format
 | (special_constant.number i) := to_fmt (to_string i)
 | (special_constant.string str) := to_fmt str
+| (special_constant.bitvec bitsz num) :=
+    let unum := match num with
+        | int.neg_succ_of_nat n' := 2^bitsz - n'
+        | int.of_nat n' := n'
+        end in
+    if bitsz % 4 = 0 then -- use #xNNNN format
+        "#x" ++
+        (let l := to_hex unum in
+         list.as_string (list.repeat '0' (bitsz / 4 - string.length l))
+         ++ l)
+    else -- use #bBBBB format
+        let b := ((nat.bits unum).map (λ b, cond b 1 0)).reverse in
+        let bits := list.repeat 0 (bitsz - list.length b) in
+        -- Add leading zeros
+        "#b" ++ list.foldl (λ fmt bit, fmt ++ to_fmt bit) format.nil (bits ++ b)
 
 instance int_to_special_constant : has_coe int special_constant :=
 ⟨ special_constant.number ⟩
@@ -23,8 +50,11 @@ instance : has_coe string sort :=
 
 meta def sort.to_format : sort → format
 | (sort.id i) := to_fmt i
-| (sort.apply _ _) := "NYI"
-
+| (sort.apply name sorts) := -- (name sort1 sort2 ..)
+    format.of_string "(" ++ (to_fmt name) ++ " " ++
+        (format.join $ list.intersperse (format.of_string " ")
+                     $ sorts.map (sort.to_format)) ++ ")"
+ 
 meta instance sort_has_to_fmt : has_to_format sort :=
 ⟨ sort.to_format ⟩
 

@@ -84,6 +84,35 @@ term.apply "-" [t]
 def int_const (i : int) : term :=
 term.const $ special_constant.number i
 
+-- Begin bitvec operations
+def bv_const (bitwidth:nat) (i : int) : term :=
+term.const $ special_constant.bitvec bitwidth i
+
+def bv_add (t u : term) : term :=
+term.apply "bvadd" [t, u]
+
+def bv_sub (t u : term) : term :=
+term.apply "bvsub" [t, u]
+
+def bv_mul (t u : term) : term :=
+term.apply "bvmul" [t, u]
+
+def bv_udiv (t u : term) : term :=
+term.apply "bvudiv" [t, u]
+
+def bv_sdiv (t u : term) : term :=
+term.apply "bvsdiv" [t, u]
+
+def bv_urem (t u : term) : term :=
+term.apply "bvurem" [t, u]
+
+def bv_smod (t u : term) : term :=
+term.apply "bvsmod" [t, u]
+
+def bv_or (t u : term) : term :=
+term.apply "bvor" [t, u]
+-- End bitvec operations
+
 def lift_state {α : Type} (action : state (list smt2.cmd) α) : smt2.builder α :=
 λ s, let (a, s') := action s in (except.ok a, s')
 
