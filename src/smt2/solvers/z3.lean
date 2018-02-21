@@ -22,4 +22,6 @@ do let z3_stdin := z3.process.stdin,
    io.fs.write z3_stdin cs,
    io.fs.close z3_stdin,
    res ← io.fs.read_to_end z3_stdout,
+   io.fs.close z3_stdout,
+   io.proc.wait z3.process,
    return res.to_string
