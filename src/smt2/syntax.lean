@@ -5,38 +5,36 @@ namespace smt2
 
 inductive special_constant : Type
 | number : int → special_constant
-| bitvec : nat → int → special_constant 
+| bitvec : nat → int → special_constant
 | string : string → special_constant
 
 def hexdigit (n:nat) : char :=
-    char.of_nat (if n < 10 then
-            char.to_nat '0' + n
-        else char.to_nat 'A' + n - 10)
+char.of_nat $
+  if n < 10 then '0'.to_nat + n
+  else 'A'.to_nat + n - 10
 
--- to_hex is meta because currently
--- termination cannot be guaranteed by LEAN.
-meta def to_hex : nat → string
-| 0 := "" -- leave it as "".
-| n := (to_hex (n / 16)) ++ to_string (hexdigit (n % 16))
+def to_hex : nat → string
+| 0        := "" -- leave it as "".
+| n'@(n+1) :=
+  have n' / 16 < n', begin apply nat.div_lt_self, apply nat.zero_lt_succ, comp_val end,
+  to_hex (n' / 16) ++ to_string (hexdigit (n' % 16))
 
-meta def special_constant.to_format : special_constant → format
-| (special_constant.number i) := to_fmt (to_string i)
-| (special_constant.string str) := to_fmt str
+def special_constant.to_string : special_constant → string
+| (special_constant.number i)   := to_string i
+| (special_constant.string str) := str
 | (special_constant.bitvec bitsz num) :=
-    let unum := match num with
-        | int.neg_succ_of_nat n' := 2^bitsz - n'
-        | int.of_nat n' := n'
-        end in
-    if bitsz % 4 = 0 then -- use #xNNNN format
-        "#x" ++
-        (let l := to_hex unum in
-         list.as_string (list.repeat '0' (bitsz / 4 - string.length l))
-         ++ l)
-    else -- use #bBBBB format
-        let b := ((nat.bits unum).map (λ b, cond b 1 0)).reverse in
-        let bits := list.repeat 0 (bitsz - list.length b) in
-        -- Add leading zeros
-        "#b" ++ list.foldl (λ fmt bit, fmt ++ to_fmt bit) format.nil (bits ++ b)
+  let unum := if num < 0 then 2^bitsz - num.nat_abs + 1 else num.to_nat in
+  if bitsz % 4 = 0 then -- use #xNNNN format
+    let l := to_hex unum in
+    "#x" ++ list.as_string (list.repeat '0' (bitsz / 4 - l.length)) ++ l
+  else -- use #bBBBB format
+    let b     := ((nat.bits unum).map (λ b, cond b 1 0)).reverse in
+    let zeros := list.repeat 0 (bitsz - list.length b) in
+    let bits  := zeros ++ b in  -- Add leading zeros
+    "#b" ++ bits.foldl (λ fmt bit, fmt ++ to_string bit) ""
+
+meta def special_constant.to_format : special_constant → format :=
+to_fmt ∘ special_constant.to_string
 
 instance int_to_special_constant : has_coe int special_constant :=
 ⟨ special_constant.number ⟩
@@ -46,15 +44,15 @@ inductive sort : Type
 | apply : identifier → list sort → sort
 
 instance : has_coe string sort :=
-⟨ fun str, sort.id str ⟩
+⟨ sort.id ⟩
 
 meta def sort.to_format : sort → format
 | (sort.id i) := to_fmt i
 | (sort.apply name sorts) := -- (name sort1 sort2 ..)
-    format.of_string "(" ++ (to_fmt name) ++ " " ++
-        (format.join $ list.intersperse (format.of_string " ")
-                     $ sorts.map (sort.to_format)) ++ ")"
- 
+  format.paren $
+    to_fmt name ++
+    (format.join $ sorts.map (λ s, to_fmt " " ++ sort.to_format s))
+
 meta instance sort_has_to_fmt : has_to_format sort :=
 ⟨ sort.to_format ⟩
 
