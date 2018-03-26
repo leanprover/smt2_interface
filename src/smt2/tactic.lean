@@ -10,11 +10,15 @@ inductive smt2.response
 | other : string → smt2.response
 
 meta def parse_smt2_result (str : string) : smt2.response :=
-if str = "sat\n"
+-- Removes trailing white space.
+let str := list.as_string (str.to_list.reverse.drop_while
+      (λ (c:char), c.is_whitespace ∨ c.to_nat = 13 /- carriage return -/))
+      .reverse in
+if str = "sat"
 then smt2.response.sat
-else if str = "unsat\n"
+else if str = "unsat"
 then smt2.response.unsat
-else if str = "unknown\n"
+else if str = "unknown"
 then smt2.response.unknown
 else smt2.response.other str
 
