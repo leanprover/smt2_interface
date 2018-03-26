@@ -24,7 +24,7 @@ meta def smt2_state.initial : smt2_state :=
 state_t smt2_state tactic α
 
 meta instance tactic_to_smt2_m (α : Type) : has_coe (tactic α) (smt2_m α) :=
-⟨ fun tc, fun s, do res ← tc, return (res, s) ⟩
+⟨ fun tc, state_t.mk (fun s, do res ← tc, return (res, s)) ⟩
 
 namespace smt2
 
@@ -38,8 +38,8 @@ meta def mangle_name (n : name) : string :=
 "lean_" ++ n^.to_string_with_sep "-"
 
 meta def insert_type (n : string) (ty : expr) (lty : lol.type) : smt2_m unit :=
-do st ← state_t.read,
-   state_t.write ⟨
+do st ← get,
+   smt2.builder.put ⟨
      st.ctxt.declare_type n lty,
      st.type_map.insert ty lty
    ⟩
@@ -57,7 +57,7 @@ in lol.type.fn <$> monad.mapm cb args <*> cb rt
 
 meta def compile_type : expr → smt2_m lol.type :=
 fun ty,
-do st ← state_t.read,
+do st ← get,
    match st.type_map.find ty with
    | some lty := return lty
    | none := do
@@ -77,10 +77,10 @@ do st ← state_t.read,
    end
 
 meta def add_decl (n : name) (ty : expr) : smt2_m unit :=
-  do st ← state_t.read,
+  do st ← get,
      ct ← compile_type ty,
      let d := lol.decl.fn (mangle_name n) ct none,
-     state_t.write { st with ctxt := st.ctxt.declare d }
+     smt2.builder.put { st with ctxt := st.ctxt.declare d }
 
 -- meta def ensure_constant (e : expr) (n : name) : smt2_m lol.decl :=
 --   do ty ← infer_type e,
@@ -197,8 +197,8 @@ match ty with
 end
 
 meta def add_assertion (t : lol.term) : smt2_m unit :=
-  do st ← state_t.read,
-     state_t.write { st with ctxt := st.ctxt.assert t }
+  do st ← get,
+     smt2.builder.put { st with ctxt := st.ctxt.assert t }
 
 meta def compile_pi (e : expr) (cb : expr → smt2_m lol.term) : smt2_m lol.term :=
 if supported_pi_binder e.binding_domain
@@ -296,7 +296,7 @@ meta def reflect : smt2_m (builder unit) :=
 do reflect_environment,
    reflect_context,
    reflect_goal,
-   st ← state_t.read,
+   st ← get,
    return $ (lol.to_builder (lol.smt2_compiler_state.mk (rb_map.mk _ _) st.ctxt []) lol.compile >> check_sat)
 
 end smt2
@@ -312,7 +312,7 @@ end
 axiom proof_by_z3 (A : Sort u) : A
 
 meta def z3 (log_file : option string := none) : tactic unit :=
-do (builder, _) ← smt2.reflect smt2_state.initial,
+do (builder, _) ← smt2.reflect.run smt2_state.initial,
    resp ← unsafe_run_io (smt2 builder log_file),
    match resp with
    | smt2.response.sat := fail "z3 was unable to prove the goal"

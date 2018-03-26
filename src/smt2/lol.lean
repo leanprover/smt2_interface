@@ -1,6 +1,5 @@
 import smt2.syntax
 import smt2.builder
-import .except
 open native
 namespace lol
 
@@ -199,19 +198,16 @@ meta structure smt2_compiler_state :=
 (ctxt : context)
 (commands : list smt2.cmd)
 
-meta def smt2_compiler := except_t (state smt2_compiler_state) string
+meta def smt2_compiler := except_t string (state smt2_compiler_state)
 
 meta instance smt2_compiler.monad : monad smt2_compiler :=
 begin
 dunfold smt2_compiler, apply_instance
 end
 
-meta def lift_state {α : Type} (action : state smt2_compiler_state α) : smt2_compiler α :=
-λ s, let (a, s') := action s in (except.ok a, s')
-
 meta def add_command (c : smt2.cmd) : smt2_compiler unit :=
-do st ← lift_state state.read,
-   lift_state $ state.write { st with commands := c :: st.commands }
+do st ← except_t.lift get,
+   except_t.lift $ put { st with commands := c :: st.commands }
 
 meta def declare_fun (sym : string) (ps : list smt2.sort) (ret : smt2.sort) : smt2_compiler unit :=
 add_command $ smt2.cmd.declare_fun sym ps ret
@@ -223,7 +219,7 @@ meta def assert (t : smt2.term) : smt2_compiler unit :=
 add_command $ smt2.cmd.assert_cmd t
 
 meta def smt2_compiler.fail {α : Type} : string → smt2_compiler α :=
-fun msg s, (except.error msg, s)
+fun msg, except_t.mk (state_t.mk (fun s, (except.error msg, s)))
 
 private meta def compile_type_simple : type → smt2_compiler smt2.sort
 | (type.bool) := return "Bool"
@@ -272,11 +268,11 @@ meta def inst_ref (f : string → term) : term → term :=
     fun t, term.subst "__bogus__" t (f "__bogus__")
 
 meta def unless_cached (t : term) (action : smt2_compiler unit) : smt2_compiler unit :=
-do st ← lift_state state.read,
+do st ← except_t.lift get,
    match st.refinement_map.find t with
    | none :=
      do let st' := { st with refinement_map := st.refinement_map.insert t () },
-        lift_state $ state.write st',
+        except_t.lift $ smt2.builder.put st',
         action
    | some _ := return ()
    end
@@ -302,7 +298,7 @@ private meta def compile_term_app
 (t : string)
 (us : list term) : smt2_compiler smt2.term :=
 do args ← monad.mapm compile_term us,
-   st ← lift_state state.read,
+   st ← except_t.lift get,
     match st.ctxt.lookup_type t with
     | none := smt2_compiler.fail "unknown function"
     | some ty :=
@@ -369,12 +365,13 @@ private meta def compile_assertions : list term → smt2_compiler unit
      compile_assertions ts
 
 meta def compile : smt2_compiler unit :=
-do st ← lift_state state.read,
+do st ← except_t.lift get,
    compile_types st.ctxt.type_decl.to_list,
    compile_decls st.ctxt.decls.to_list,
    compile_assertions st.ctxt.assertions
 
 meta def to_builder {α : Type} (st : smt2_compiler_state) : smt2_compiler α → smt2.builder α
-| action := let (exc, st') := action st in fun cs, (exc, cs ++ st'.commands)
+| action := let (exc, st') := action.run.run st in
+    except_t.mk (state_t.mk (fun cs, (exc, cs ++ st'.commands)))
 
 end lol
