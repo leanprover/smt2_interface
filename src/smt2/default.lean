@@ -39,7 +39,7 @@ meta def mangle_name (n : name) : string :=
 
 meta def insert_type (n : string) (ty : expr) (lty : lol.type) : smt2_m unit :=
 do st ← get,
-   smt2.builder.put ⟨
+   put ⟨
      st.ctxt.declare_type n lty,
      st.type_map.insert ty lty
    ⟩
@@ -80,7 +80,7 @@ meta def add_decl (n : name) (ty : expr) : smt2_m unit :=
   do st ← get,
      ct ← compile_type ty,
      let d := lol.decl.fn (mangle_name n) ct none,
-     smt2.builder.put { st with ctxt := st.ctxt.declare d }
+     put { st with ctxt := st.ctxt.declare d }
 
 -- meta def ensure_constant (e : expr) (n : name) : smt2_m lol.decl :=
 --   do ty ← infer_type e,
@@ -198,7 +198,7 @@ end
 
 meta def add_assertion (t : lol.term) : smt2_m unit :=
   do st ← get,
-     smt2.builder.put { st with ctxt := st.ctxt.assert t }
+     put { st with ctxt := st.ctxt.assert t }
 
 meta def compile_pi (e : expr) (cb : expr → smt2_m lol.term) : smt2_m lol.term :=
 if supported_pi_binder e.binding_domain

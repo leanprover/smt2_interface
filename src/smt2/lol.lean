@@ -272,7 +272,7 @@ do st ← except_t.lift get,
    match st.refinement_map.find t with
    | none :=
      do let st' := { st with refinement_map := st.refinement_map.insert t () },
-        except_t.lift $ smt2.builder.put st',
+        except_t.lift $ put st',
         action
    | some _ := return ()
    end

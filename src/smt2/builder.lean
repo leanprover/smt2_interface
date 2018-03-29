@@ -1,5 +1,4 @@
 import .syntax
-import init.category.transformers
 
 @[reducible] def smt2.builder :=
 except_t string (state (list smt2.cmd))
@@ -111,9 +110,6 @@ term.apply "bvsmod" [t, u]
 def bv_or (t u : term) : term :=
 term.apply "bvor" [t, u]
 -- End bitvec operations
-
-def put {σ:Type} {m:Type → Type} [monad m] : σ → state_t σ m unit :=
-λ s', ⟨λ s, return (unit.star, s')⟩
 
 def add_command (c : cmd) : builder unit := do
 cs ← except_t.lift get,
