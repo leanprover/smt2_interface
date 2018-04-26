@@ -46,6 +46,12 @@ term.apply "or" ts
 def or2 (t u : term) : term :=
 or [t, u]
 
+def xor (ts : list term) : term :=
+term.apply "xor" ts
+
+def xor2 (t u : term) : term :=
+xor [t, u]
+
 def iff (t u : term) : term :=
 term.apply "iff" [t, u]
 
@@ -79,6 +85,9 @@ term.apply "mod" [t, u]
 def neg (t : term) : term :=
 term.apply "-" [t]
 
+def ite (c t f : term) : term :=
+term.apply "ite" [c, t, f]
+
 def int_const (i : int) : term :=
 term.const $ special_constant.number i
 
@@ -107,8 +116,53 @@ term.apply "bvurem" [t, u]
 def bv_smod (t u : term) : term :=
 term.apply "bvsmod" [t, u]
 
+def bv_srem (t u : term) : term :=
+term.apply "bvsrem" [t, u]
+
 def bv_or (t u : term) : term :=
 term.apply "bvor" [t, u]
+
+def bv_and (t u : term) : term :=
+term.apply "bvand" [t, u]
+
+def bv_xor (t u : term) : term :=
+term.apply "bvxor" [t, u]
+
+def bv_shl (t u : term) : term :=
+term.apply "bvshl" [t, u]
+
+def bv_lshr (t u : term) : term :=
+term.apply "bvlshr" [t, u]
+
+def bv_ashr (t u : term) : term :=
+term.apply "bvashr" [t, u]
+
+def bv_sle (t u : term) : term :=
+term.apply "bvsle" [t, u]
+
+def bv_slt (t u : term) : term :=
+term.apply "bvslt" [t, u]
+
+def bv_ule (t u : term) : term :=
+term.apply "bvule" [t, u]
+
+def bv_ult (t u : term) : term :=
+term.apply "bvult" [t, u]
+
+def bv_zext (bitsz : nat) (t : term) : term :=
+term.apply2 (term.apply "_"
+    [term.qual_id "zero_extend", term.const bitsz])
+    [t]
+
+def bv_sext (bitsz : nat) (t : term) : term :=
+term.apply2 (term.apply "_"
+    [term.qual_id "sign_extend", term.const bitsz])
+    [t]
+
+def bv_extract (upper lower : nat) (t : term) : term :=
+term.apply2 (term.apply "_" [term.qual_id "extract",
+    term.const ↑upper, term.const ↑lower])
+    [t]
 -- End bitvec operations
 
 def add_command (c : cmd) : builder unit := do

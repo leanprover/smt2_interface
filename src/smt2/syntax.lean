@@ -7,6 +7,7 @@ inductive special_constant : Type
 | number : int → special_constant
 | bitvec : nat → int → special_constant
 | string : string → special_constant
+| bool : bool → special_constant
 
 def hexdigit (n:nat) : char :=
 char.of_nat $
@@ -32,6 +33,8 @@ def special_constant.to_string : special_constant → string
     let zeros := list.repeat 0 (bitsz - list.length b) in
     let bits  := zeros ++ b in  -- Add leading zeros
     "#b" ++ bits.foldl (λ fmt bit, fmt ++ to_string bit) ""
+| (special_constant.bool b) :=
+    if b then "true" else "false"
 
 meta def special_constant.to_format : special_constant → format :=
 to_fmt ∘ special_constant.to_string
@@ -73,6 +76,7 @@ inductive term : Type
 | qual_id : qualified_name → term
 | const : special_constant → term
 | apply : qualified_name → list term → term
+| apply2 : term → list term → term -- General form of `apply`
 | letb : list (name × term) → term → term
 | forallq : list (symbol × sort) → term → term
 | existsq : list (symbol × sort) → term → term
@@ -91,6 +95,10 @@ meta def term.to_format : term → format
     let formatted_ts := format.join $ list.intersperse " "  $ ts.map term.to_format in
     format.bracket "(" ")" (
         qual_id.to_format ++ format.space ++ formatted_ts)
+| (term.apply2 f ts) :=
+    let formatted_ts := format.join $ list.intersperse " "  $ ts.map term.to_format in
+    format.bracket "(" ")" (
+        f.to_format ++ format.space ++ formatted_ts)
 | (term.letb ps ret) := "NYI"
 | (term.forallq bs body) :=
     "(forall (" ++
